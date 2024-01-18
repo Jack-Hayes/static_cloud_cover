@@ -1,58 +1,72 @@
 <template>
   <div>
-    <div ref="map" style="height: 400px;"></div>
+    <div ref="map" style="height: 100vh;"></div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue';
-import L from 'leaflet';
+<script>
+/* global L */
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.heat';
-import csvPath from 'public\\cloud_cover_df.csv';
+import 'leaflet/dist/leaflet.js'; // Import Leaflet library
+import 'leaflet.heat/dist/leaflet-heat.js';
+import Papa from 'papaparse';
 
-const map = ref(null);
-// const latBounds = [13.5, 50.5];
-// const lonBounds = [-130.5, -61.5];
-let heatmapData = [];
+export default {
+  data() {
+    return {
+      map: null,
+      heatLayer: null,
+    };
+  },
+  mounted() {
+    this.initMap();
+    this.loadData();
+  },
+  methods: {
+    initMap() {
+      this.map = L.map(this.$refs.map).setView([15, -95], 4);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+    },
+    loadData() {
+      Papa.parse('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/cloud_cover_df.csv', {
+        download: true,
+        complete: (result) => {
+          const data = result.data.slice(1);
+          this.createHeatmap(data);
+        },
+      });
+    },
+    createHeatmap(data) {
+      const latlngs = data.map((row) => {
+        const lat = parseFloat(row[0]);
+        const lon = parseFloat(row[1]);
+        const intensity = parseFloat(row[2]);
 
-onMounted(() => {
-  initMap();
-  parseCSV();
-  displayHeatmap();
-});
+        // Check if coordinates are valid
+        if (!isNaN(lat) && !isNaN(lon) && !isNaN(intensity)) {
+          return [lat, lon, intensity];
+        }
 
-const initMap = () => {
-  map.value = L.map('map').setView([33, -95], 4);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-  }).addTo(map.value);
-};
+        return null; // Skip invalid data
+      }).filter(point => point !== null);
 
-const parseCSV = async () => {
-  try {
-    const response = await fetch(csvPath);
-    const data = await response.text();
-    const lines = data.split('\n');
-    lines.shift(); // Remove header line
+      if (this.heatLayer) {
+        this.map.removeLayer(this.heatLayer);
+      }
 
-    heatmapData = lines.map((line) => {
-      const [lat, lon, intensity] = line.split(',').map(parseFloat);
-      return [lat, lon, intensity];
-    });
-  } catch (error) {
-    console.error('Error fetching CSV:', error);
-  }
-};
-
-const displayHeatmap = () => {
-  console.log('Displaying heatmap data:', heatmapData);
-
-  L.heatLayer(heatmapData, {
-    radius: 25,
-    blur: 15,
-    maxZoom: 10,
-    gradient: { 0.4: 'grey', 0.65: 'orange', 1: 'red' },
-  }).addTo(map.value);
+      this.heatLayer = L.heatLayer(latlngs, {
+        radius: 15,
+        minOpacity: 0.5,
+        maxZoom: 10,
+        gradient: { 0.03: 'gray', 0.7: 'orange', 0.98: 'red' },
+      }).addTo(this.map);
+    },
+  },
 };
 </script>
+
+<style scoped>
+#map {
+  height: 100vh;
+}
+</style>
