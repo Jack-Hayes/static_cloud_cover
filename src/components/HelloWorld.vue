@@ -1,108 +1,74 @@
 <template>
-  <div>
-    <div ref="map" style="height: 100vh;"></div>
-  </div>
+  <div id="map"></div>
 </template>
 
 <script>
-/* global L */
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet/dist/leaflet.js';
-import 'leaflet.heat/dist/leaflet-heat.js';
 import Papa from 'papaparse';
-
-// Define radius values for each zoom level
-const zoomToRadius = {
-  3: 20,
-  4: 10,
-  5: 8,
-  6: 4,
-  // Add more levels as needed
-};
 
 export default {
   data() {
     return {
       map: null,
-      heatLayer: null,
-      defaultRadius: 10, // Initial radius
     };
   },
   mounted() {
-    this.initMap();
+    this.initializeMap();
     this.loadData();
   },
   methods: {
-    initMap() {
-      this.map = L.map(this.$refs.map).setView([15, -95], 3);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+    initializeMap() {
+      this.map = L.map('map').setView([37.5, -96], 4);
 
-      // Add zoomstart and zoomend event listeners
-      this.map.on('zoomstart', this.onZoomStart);
-      this.map.on('zoomend', this.onZoomEnd);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(this.map);
     },
     loadData() {
-      Papa.parse('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/cloud_cover_df.csv', {
-        download: true,
+      fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/cloud_cover_df.csv')
+        .then(response => response.text())
+        .then(csvData => {
+          this.parseData(csvData);
+        })
+        .catch(error => {
+          console.error('Error fetching data:', error);
+        });
+    },
+    parseData(csvData) {
+      Papa.parse(csvData, {
+        header: true,
+        dynamicTyping: true,
         complete: (result) => {
-          const data = result.data.slice(1);
-          this.createHeatmap(data);
+          result.data.forEach(row => {
+            const lat = parseFloat(row.lat);
+            const lon = parseFloat(row.lon);
+            const cloudCover = parseFloat(row.cloud_cover);
+
+            this.addRectangle(lat, lon, cloudCover);
+          });
         },
       });
     },
-    createHeatmap(data) {
-      const latStep = 1;
-      const lonStep = 1;
+    addRectangle(lat, lon, cloudCover) {
+      const color = this.getColor(cloudCover);
 
-      const latlngs = [];
-      for (let lat = 13.5; lat <= 50.5; lat += latStep) {
-        for (let lon = -130.5; lon <= -61.5; lon += lonStep) {
-          const intensity = this.getIntensityForLocation(data, lat, lon);
-          latlngs.push([lat, lon, intensity]);
-        }
-      }
-
-      if (this.heatLayer) {
-        this.map.removeLayer(this.heatLayer);
-      }
-
-      this.heatLayer = L.heatLayer(latlngs.filter(point => point[2] !== null), {
-        radius: this.defaultRadius, // Set default radius
-        minOpacity: 0.5,
-        maxZoom: 10,
-        gradient: {
-          0: 'gray',
-          0.6: 'yellow',
-          1: 'red',
-        }
+      L.rectangle([
+        [lat + 0.5, lon - 0.5],
+        [lat - 0.5, lon + 0.5],
+      ], {
+        color: 'none', // No border
+        fillColor: color,
+        fillOpacity: 0.5,
       }).addTo(this.map);
     },
-    getIntensityForLocation(data, lat, lon) {
-      const point = data.find(row => {
-        const rowLat = parseFloat(row[0]);
-        const rowLon = parseFloat(row[1]);
-        return !isNaN(rowLat) && !isNaN(rowLon) && Math.abs(rowLat - lat) < 0.5 && Math.abs(rowLon - lon) < 0.5;
-      });
+    getColor(cloudCover) {
+      // Calculate HSL color based on a gradient
+      const hue = 30 + (cloudCover * 120); // 30° to 150°
+      const saturation = '100%';
+      const lightness = 50 + (cloudCover * 50) + '%'; // 50% to 100%
 
-      return point ? parseFloat(point[2]) : null;
-    },
-    onZoomStart() {
-      // Zoom level changed... adjust heatmap layer options!
-      const newRadius = this.getRadius();
-      this.heatLayer.setOptions({
-        radius: newRadius,
-      });
-    },
-    onZoomEnd() {
-      // Redraw the heatmap after zooming is complete
-      this.heatLayer.redraw();
-    },
-    getRadius() {
-      // Get the current zoom level
-      const zoomLevel = this.map.getZoom();
-
-      // Use the predefined radius for the current zoom level
-      return zoomToRadius[zoomLevel] || this.defaultRadius;
+      return `hsl(${hue}, ${saturation}, ${lightness})`;
     },
   },
 };
