@@ -26,7 +26,7 @@ export default {
       }).addTo(this.map);
     },
     loadData() {
-      fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/cloud_cover_df.csv')
+      fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/one_tenth_degree_median.csv')
         .then(response => response.text())
         .then(csvData => {
           this.parseData(csvData);
@@ -43,7 +43,7 @@ export default {
           result.data.forEach(row => {
             const lat = parseFloat(row.lat);
             const lon = parseFloat(row.lon);
-            const cloudCover = parseFloat(row.cloud_cover);
+            const cloudCover = parseFloat(row.median_cloud_cover);
 
             this.addRectangle(lat, lon, cloudCover);
           });
@@ -54,12 +54,12 @@ export default {
       const color = this.getColor(cloudCover);
 
       L.rectangle([
-        [lat + 0.5, lon - 0.5],
-        [lat - 0.5, lon + 0.5],
+        [lat + 0.05, lon - 0.05],
+        [lat - 0.05, lon + 0.05],
       ], {
         color: 'none', // No border
         fillColor: color,
-        fillOpacity: 0.5,
+        fillOpacity: 0.7,
       }).addTo(this.map);
     },
     getColor(cloudCover) {
