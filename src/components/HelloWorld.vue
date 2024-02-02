@@ -1,24 +1,24 @@
 <template>
   <div>
+    <div class="legend">
+      <div class="legend-title">Cloud Cover Percent</div>
+      <div class="color-bars">
+        <div class="color-bar" v-for="(color, index) in colors" :key="index" :style="{ backgroundColor: color.color, opacity: color.opacity, borderColor: color.borderColor }">
+          <div class="label">{{ color.label }}</div>
+        </div>
+      </div>
+    </div>
     <div id="map"></div>
     <div class="dropdown">
       <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
         {{ selectedOption }}
       </button>
-      <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+      <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
         <a class="dropdown-item" href="#" @click="updateSelectedOption('mean')">Mean</a>
         <a class="dropdown-item" href="#" @click="updateSelectedOption('median')">Median</a>
         <a class="dropdown-item" href="#" @click="updateSelectedOption('mode')">Mode</a>
         <a class="dropdown-item" href="#" @click="updateSelectedOption('min')">Minimum</a>
         <a class="dropdown-item" href="#" @click="updateSelectedOption('max')">Maximum</a>
-      </div>
-    </div>
-    <div class="legend">
-      <div class="legend-title">Legend</div>
-      <div class="gradient" :style="{ background: gradientBackground }"></div>
-      <div class="labels">
-        <div class="label" style="top: 80px;">1</div> <!-- Adjust margin as needed -->
-        <div class="label">0</div>
       </div>
     </div>
   </div>
@@ -34,12 +34,14 @@ export default {
     return {
       map: null,
       selectedOption: 'mean', // Default selected option
+      colors: [
+        { color: '#ffffff', opacity: 1, label: '0-20%', borderColor: 'black' },
+        { color: 'Khaki', opacity: 0.6, label: '20-40%' },
+        { color: 'gold', opacity: 0.6, label: '40-60%' },
+        { color: 'orange', opacity: 0.6, label: '60-80%' },
+        { color: 'red', opacity: 0.6, label: '80-100%' }
+      ]
     };
-  },
-  computed: {
-    gradientBackground() {
-      return `linear-gradient(to bottom, hsl(0, 100%, 50%) 0%, hsl(30, 100%, 50%) 33%, hsl(60, 100%, 50%) 66%, hsl(60, 100%, 50%) 100%)`;
-    },
   },
   mounted() {
     this.initializeMap();
@@ -54,10 +56,13 @@ export default {
       }).addTo(this.map);
     },
     loadData() {
+      const start = performance.now(); // Track start time
       fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/us_half_deg_stats.csv')
         .then(response => response.text())
         .then(csvData => {
           this.parseData(csvData);
+          const end = performance.now();
+          console.log('Time taken to fetch data:', end - start, 'milliseconds');
         })
         .catch(error => {
           console.error('Error fetching data:', error);
@@ -78,32 +83,30 @@ export default {
       });
     },
     addRectangle(lat, lon, cloudCover) {
-      const color = this.getColor(cloudCover);
+      const color = this.getColor(cloudCover); // Get color based on cloud cover
+      const opacity = 0.6; // Constant opacity
 
       L.rectangle([
         [lat + 0.375, lon - 0.34],
         [lat - 0.375, lon + 0.34],
       ], {
         color: 'none', // No border
-        fillColor: color,
-        fillOpacity: 0.55,
+        fillColor: color, // Dynamic color based on cloud cover
+        fillOpacity: opacity,
       }).addTo(this.map);
     },
     getColor(cloudCover) {
-      let hue, lightness;
-
-      if (cloudCover >= 0.66) {
-        hue = 0; // Red
-        lightness = 50 + ((1 - cloudCover) * 50) + '%'; // Brightness decreases as cloudCover approaches 1
-      } else if (cloudCover >= 0.33) {
-        hue = 30; // Orange
-        lightness = '50%'; // Constant brightness
+      if (cloudCover >= 0 && cloudCover < 0.2) {
+        return '#ffffff'; // White
+      } else if (cloudCover >= 0.2 && cloudCover < 0.4) {
+        return 'Khaki';
+      } else if (cloudCover >= 0.4 && cloudCover < 0.6) {
+        return 'gold';
+      } else if (cloudCover >= 0.6 && cloudCover < 0.8) {
+        return 'orange';
       } else {
-        hue = 60; // Yellow
-        lightness = 50 + (cloudCover * 50) + '%'; // Brightness increases as cloudCover approaches 0
+        return 'red';
       }
-
-      return `hsl(${hue}, 100%, ${lightness})`;
     },
     updateSelectedOption(option) {
       this.selectedOption = option;
@@ -122,21 +125,16 @@ export default {
 #map {
   height: 80vh;
 }
-.dropdown {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-}
 
 .legend {
   position: absolute;
   top: 10px;
   left: 10px;
-  z-index: 1000;
+  padding: 10px;
   background-color: rgba(255, 255, 255, 0.8);
   border: 1px solid #ccc;
   border-radius: 5px;
-  padding: 5px;
+  width: auto; /* Extend to contain the labels */
 }
 
 .legend-title {
@@ -144,19 +142,29 @@ export default {
   margin-bottom: 5px;
 }
 
-.gradient {
-  width: 20px;
-  height: 150px; /* Adjust height as needed */
-  background: linear-gradient(to bottom, hsl(0, 100%, 50%) 0%, hsl(60, 100%, 50%) 25%, hsl(120, 100%, 50%) 50%, hsl(180, 100%, 50%) 75%, hsl(240, 100%, 50%) 100%);
-}
-
-.labels {
+.color-bars {
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-.label {
-  font-size: 12px;
+.color-bar {
+  height: 20px;
+  margin-bottom: 5px;
+  position: relative;
+}
+
+.color-bar .label {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 5px);
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 10px; /* Reduce font size */
+}
+
+.dropdown {
+  position: absolute;
+  top: 10px;
+  right: 10px;
 }
 </style>
