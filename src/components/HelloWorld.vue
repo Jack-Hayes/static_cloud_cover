@@ -57,7 +57,7 @@ export default {
     },
     loadData() {
       const start = performance.now(); // Track start time
-      fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/us_half_deg_stats.csv')
+      fetch('https://raw.githubusercontent.com/Jack-Hayes/static_cloud_cover/master/public/neutral.csv')
         .then(response => response.text())
         .then(csvData => {
           this.parseData(csvData);
@@ -87,8 +87,8 @@ export default {
       const opacity = 0.6; // Constant opacity
 
       L.rectangle([
-        [lat + 0.375, lon - 0.34],
-        [lat - 0.375, lon + 0.34],
+        [lat + 0.25, lon - 0.25],
+        [lat - 0.25, lon + 0.25],
       ], {
         color: 'none', // No border
         fillColor: color, // Dynamic color based on cloud cover
